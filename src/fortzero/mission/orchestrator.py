@@ -11,6 +11,7 @@ from fortzero.mission.models import MissionLaunchContext, MissionRunState
 from fortzero.mission.objective_engine import ObjectiveEngine
 from fortzero.mission.prerequisite_engine import PrerequisiteEngine
 from fortzero.profile.models import utc_now_iso
+from fortzero.runtime.models import RuntimeState
 from fortzero.world.world_service import WorldService
 
 
@@ -65,6 +66,22 @@ class MissionOrchestrator:
 
         self.mission_run_repository.update_run(run_id, run_state)
 
+        if duplicate:
+            self.event_bus.publish(
+                DomainEvent(
+                    event_type=EventTypes.GHOSTWATCH_SIGNAL,
+                    source="mission.orchestrator",
+                    profile_alias=run_state.profile_alias,
+                    mission_id=run_state.mission_id,
+                    payload={
+                        "run_id": run_id,
+                        "reason": "duplicate_objective_completion",
+                        "score": 2,
+                    },
+                )
+            )
+            return True
+
         self.event_bus.publish(
             DomainEvent(
                 event_type=EventTypes.OBJECTIVE_COMPLETED,
@@ -74,11 +91,52 @@ class MissionOrchestrator:
                 payload={
                     "run_id": run_id,
                     "objective_id": objective_id,
-                    "duplicate": duplicate,
+                    "duplicate": False,
                 },
             )
         )
         return True
+
+    def sync_runtime_objectives(self, run_id: int, run_state: MissionRunState, runtime_state: RuntimeState) -> None:
+        changed = False
+
+        for objective in run_state.objectives:
+            if objective.id == "identify_entry" and runtime_state.identified_entry_path and not objective.completed:
+                objective.completed = True
+                changed = True
+                self.event_bus.publish(
+                    DomainEvent(
+                        event_type=EventTypes.OBJECTIVE_COMPLETED,
+                        source="mission.runtime_sync",
+                        profile_alias=run_state.profile_alias,
+                        mission_id=run_state.mission_id,
+                        payload={
+                            "run_id": run_id,
+                            "objective_id": objective.id,
+                            "duplicate": False,
+                        },
+                    )
+                )
+
+            if objective.id == "establish_access" and runtime_state.established_foothold and not objective.completed:
+                objective.completed = True
+                changed = True
+                self.event_bus.publish(
+                    DomainEvent(
+                        event_type=EventTypes.OBJECTIVE_COMPLETED,
+                        source="mission.runtime_sync",
+                        profile_alias=run_state.profile_alias,
+                        mission_id=run_state.mission_id,
+                        payload={
+                            "run_id": run_id,
+                            "objective_id": objective.id,
+                            "duplicate": False,
+                        },
+                    )
+                )
+
+        if changed:
+            self.mission_run_repository.update_run(run_id, run_state)
 
     def finalize_if_complete(self, run_id: int, run_state: MissionRunState) -> bool:
         if not self.objective_engine.required_objectives_completed(run_state):

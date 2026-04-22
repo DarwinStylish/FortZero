@@ -1,4 +1,4 @@
-"""Terminal shell boot flow for PR9."""
+"""Terminal shell boot flow for PR10."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from fortzero.ghostwatch.engine import GhostWatchEngine
 from fortzero.mission.orchestrator import MissionOrchestrator
 from fortzero.narrative.narrative_engine import NarrativeEngine
 from fortzero.profile.service import ProfileService
+from fortzero.runtime.runtime_engine import RuntimeEngine
 from fortzero.session.service import SessionService
 from fortzero.shell.banner import render_banner
 from fortzero.state.state_manager import StateManager
@@ -166,6 +167,72 @@ def print_ghostwatch_state(state_manager: StateManager, run_id: int) -> None:
     print(f"Signals: {', '.join(state.signals) if state.signals else 'None'}")
 
 
+def print_runtime_state(runtime_engine: RuntimeEngine, run_id: int) -> None:
+    state = runtime_engine.current_state(run_id)
+    if state is None:
+        return
+
+    print_separator()
+    print("TARGET ENVIRONMENT")
+    print(f"Identified entry path: {state.identified_entry_path}")
+    print(f"Established foothold: {state.established_foothold}")
+    print("Nodes:")
+    for node in state.nodes:
+        print(
+            f"- {node.id} | hostname={node.hostname} | role={node.role} | "
+            f"discovered={node.discovered} | foothold={node.foothold}"
+        )
+        for service in node.services:
+            print(
+                f"    service={service.name} port={service.port} "
+                f"state={service.state} note={service.note}"
+            )
+
+    print("Notes:")
+    if state.notes:
+        for note in state.notes:
+            print(f"- {note}")
+    else:
+        print("- None")
+
+
+def run_runtime_actions(
+    run_id: int,
+    runtime_engine: RuntimeEngine,
+    orchestrator: MissionOrchestrator,
+    run_state,
+) -> None:
+    while True:
+        print_separator()
+        print("RUNTIME ACTIONS")
+        print("1. Inspect node inventory")
+        print("2. Enumerate edge gateway services")
+        print("3. Establish foothold on edge gateway")
+        print("4. Show runtime state")
+        print("5. Back to mission menu")
+
+        action = input("Select option: ").strip()
+
+        if action == "1":
+            runtime_state, message = runtime_engine.inspect_nodes(run_id)
+            print(message)
+            orchestrator.sync_runtime_objectives(run_id, run_state, runtime_state)
+        elif action == "2":
+            runtime_state, message = runtime_engine.enumerate_services(run_id, "edge-gw")
+            print(message)
+            orchestrator.sync_runtime_objectives(run_id, run_state, runtime_state)
+        elif action == "3":
+            runtime_state, message = runtime_engine.establish_foothold(run_id, "edge-gw")
+            print(message)
+            orchestrator.sync_runtime_objectives(run_id, run_state, runtime_state)
+        elif action == "4":
+            print_runtime_state(runtime_engine, run_id)
+        elif action == "5":
+            return
+        else:
+            print("Invalid option.")
+
+
 def run_mission_flow(
     profile_alias: str,
     preferred_mode: str,
@@ -173,6 +240,7 @@ def run_mission_flow(
     missions: list[MissionDefinition],
     orchestrator: MissionOrchestrator,
     narrative_engine: NarrativeEngine,
+    runtime_engine: RuntimeEngine,
     event_bus: EventBus,
     session_id: int,
     state_manager: StateManager,
@@ -219,9 +287,11 @@ def run_mission_flow(
         return
 
     run_id, run_state = orchestrator.start_run(profile_alias, mission)
+    runtime_engine.initialize(run_id, profile_alias, mission.id)
 
     narrative_engine.render_mission_intro(mission, preferred_mode)
     print_ghostwatch_state(state_manager, run_id)
+    print_runtime_state(runtime_engine, run_id)
 
     print_separator()
     print(f"MISSION STARTED: {mission.title}")
@@ -236,13 +306,16 @@ def run_mission_flow(
 
         print()
         print("Mission Actions")
-        print("1. Mark objective complete")
-        print("2. Finish mission check")
-        print("3. Abort to menu")
+        print("1. Runtime actions")
+        print("2. Mark objective complete")
+        print("3. Finish mission check")
+        print("4. Abort to menu")
 
         action = input("Select option: ").strip()
 
         if action == "1":
+            run_runtime_actions(run_id, runtime_engine, orchestrator, run_state)
+        elif action == "2":
             raw_obj = input("Select objective number: ").strip()
             if not raw_obj.isdigit():
                 print("Invalid objective selection.")
@@ -288,18 +361,20 @@ def run_mission_flow(
                 print_ghostwatch_state(state_manager, run_id)
             else:
                 print("Objective could not be completed.")
-        elif action == "2":
+        elif action == "3":
             completed = orchestrator.finalize_if_complete(run_id, run_state)
             if completed:
                 print("Mission completed successfully.")
                 print_world_state_summary(state_manager, profile_alias)
                 print_ghostwatch_state(state_manager, run_id)
+                print_runtime_state(runtime_engine, run_id)
                 return
             print("Required objectives are still incomplete.")
             print_ghostwatch_state(state_manager, run_id)
-        elif action == "3":
+        elif action == "4":
             print("Returning to menu without completing mission.")
             print_ghostwatch_state(state_manager, run_id)
+            print_runtime_state(runtime_engine, run_id)
             return
         else:
             print("Invalid option.")
@@ -315,6 +390,7 @@ def run_main_menu(
     campaign_loader: CampaignLoader,
     orchestrator: MissionOrchestrator,
     narrative_engine: NarrativeEngine,
+    runtime_engine: RuntimeEngine,
     state_manager: StateManager,
     context: BootstrapContext,
 ) -> None:
@@ -361,6 +437,7 @@ def run_main_menu(
                     missions,
                     orchestrator,
                     narrative_engine,
+                    runtime_engine,
                     event_bus,
                     session_id,
                     state_manager,
@@ -396,6 +473,7 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
         ghostwatch_engine,
     )
     narrative_engine = NarrativeEngine(context.paths.content_dir)
+    runtime_engine = RuntimeEngine(event_bus, state_manager.runtime_repository)
 
     event_logger = EventLogger(state_manager.event_repository, logger)
     event_bus.subscribe_all(event_logger.handle)
@@ -492,6 +570,7 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
             campaign_loader,
             orchestrator,
             narrative_engine,
+            runtime_engine,
             state_manager,
             context,
         )

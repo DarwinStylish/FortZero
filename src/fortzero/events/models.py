@@ -39,3 +39,7 @@ class EventTypes:
 
     GHOSTWATCH_SIGNAL = "ghostwatch.signal"
     GHOSTWATCH_POSTURE_CHANGED = "ghostwatch.posture_changed"
+
+    RUNTIME_INITIALIZED = "runtime.initialized"
+    RUNTIME_ACTION = "runtime.action"
+    RUNTIME_STATE_CHANGED = "runtime.state_changed"
