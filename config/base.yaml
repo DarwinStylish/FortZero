@@ -1,0 +1,11 @@
+app:
+  name: FortZero
+  env: development
+  offline_mode: true
+
+runtime:
+  create_missing_dirs: true
+
+logging:
+  level: INFO
+  file: logs/fortzero.log
