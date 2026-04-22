@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fortzero.data.event_repository import EventRepository
+from fortzero.data.mission_run_repository import MissionRunRepository
 from fortzero.data.profile_repository import ProfileRepository
 from fortzero.data.session_repository import SessionRepository
 from fortzero.events.bus import EventBus
@@ -15,6 +16,7 @@ class StateManager:
     def __init__(self, db_file: Path, event_bus: EventBus | None = None) -> None:
         self.profile_repository = ProfileRepository(db_file)
         self.session_repository = SessionRepository(db_file)
+        self.mission_run_repository = MissionRunRepository(db_file)
         self.event_repository = EventRepository(db_file)
         self.event_bus = event_bus
 
