@@ -1,0 +1,26 @@
+id: m03_final_objective
+title: Final Objective
+briefing: >
+  Reach the target objective, extract the required artifact, and exit deliberately.
+campaign_id: rootborne
+order: 3
+prerequisites:
+  - m02_deep_access
+objectives:
+  - id: locate_target
+    title: Locate Target
+    description: Find the final mission target within the environment.
+  - id: secure_artifact
+    title: Secure Artifact
+    description: Retrieve or expose the required mission artifact.
+  - id: exit_cleanly
+    title: Exit Cleanly
+    description: Leave the environment with minimal unnecessary disruption.
+    optional: true
+modes:
+  agent:
+    hints_enabled: true
+    ghostwatch_sensitivity: normal
+  spectre:
+    hints_enabled: false
+    ghostwatch_sensitivity: high

@@ -1,0 +1,22 @@
+id: m02_deep_access
+title: Deep Access
+briefing: >
+  Expand access, escalate carefully, and move deeper into the environment.
+campaign_id: rootborne
+order: 2
+prerequisites:
+  - m01_silent_entry
+objectives:
+  - id: enumerate_internal
+    title: Enumerate Internal Surface
+    description: Identify the most promising deeper access vector.
+  - id: escalate_privileges
+    title: Escalate Privileges
+    description: Move from initial foothold to elevated control.
+modes:
+  agent:
+    hints_enabled: true
+    ghostwatch_sensitivity: normal
+  spectre:
+    hints_enabled: false
+    ghostwatch_sensitivity: high

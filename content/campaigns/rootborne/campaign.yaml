@@ -1,0 +1,9 @@
+id: rootborne
+title: Operation Rootborne
+description: >
+  A three-stage introductory FortZero operation focused on quiet entry,
+  layered access, and final objective execution inside a controlled target environment.
+missions:
+  - missions/m01_silent_entry
+  - missions/m02_deep_access
+  - missions/m03_final_objective
