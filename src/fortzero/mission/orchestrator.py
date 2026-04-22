@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from fortzero.content.models import MissionDefinition
+from fortzero.data.mission_run_repository import MissionRunRepository
 from fortzero.events.bus import EventBus
 from fortzero.events.models import DomainEvent, EventTypes
 from fortzero.mission.models import MissionLaunchContext, MissionRunState
 from fortzero.mission.objective_engine import ObjectiveEngine
 from fortzero.mission.prerequisite_engine import PrerequisiteEngine
 from fortzero.profile.models import utc_now_iso
-from fortzero.data.mission_run_repository import MissionRunRepository
+from fortzero.world.world_service import WorldService
 
 
 class MissionOrchestrator:
@@ -17,9 +18,11 @@ class MissionOrchestrator:
         self,
         event_bus: EventBus,
         mission_run_repository: MissionRunRepository,
+        world_service: WorldService,
     ) -> None:
         self.event_bus = event_bus
         self.mission_run_repository = mission_run_repository
+        self.world_service = world_service
         self.prerequisite_engine = PrerequisiteEngine()
         self.objective_engine = ObjectiveEngine()
 
@@ -32,7 +35,8 @@ class MissionOrchestrator:
             profile_alias=profile_alias,
             campaign_id=mission.campaign_id,
         )
-        available, reason = self.prerequisite_engine.is_available(mission, completed)
+        world_state = self.world_service.load(profile_alias)
+        available, reason = self.prerequisite_engine.is_available(mission, completed, world_state)
         return MissionLaunchContext(mission=mission, available=available, reason=reason)
 
     def start_run(self, profile_alias: str, mission: MissionDefinition) -> tuple[int, MissionRunState]:
@@ -77,13 +81,24 @@ class MissionOrchestrator:
         run_state.ended_at = utc_now_iso()
         self.mission_run_repository.update_run(run_id, run_state)
 
+        world_state = self.world_service.apply_mission_completion(
+            run_state.profile_alias,
+            run_state.mission_id,
+        )
+
         self.event_bus.publish(
             DomainEvent(
                 event_type=EventTypes.MISSION_COMPLETED,
                 source="mission.orchestrator",
                 profile_alias=run_state.profile_alias,
                 mission_id=run_state.mission_id,
-                payload={"run_id": run_id, "status": run_state.status},
+                payload={
+                    "run_id": run_id,
+                    "status": run_state.status,
+                    "unlocked_missions": world_state.unlocked_missions,
+                    "discovered_intel": world_state.discovered_intel,
+                    "acquired_access": world_state.acquired_access,
+                },
             )
         )
         return True

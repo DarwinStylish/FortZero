@@ -10,6 +10,7 @@ from fortzero.data.profile_repository import ProfileRepository
 from fortzero.data.session_repository import SessionRepository
 from fortzero.events.bus import EventBus
 from fortzero.profile.models import PlayerProfile
+from fortzero.world.world_service import WorldService
 
 
 class StateManager:
@@ -18,6 +19,7 @@ class StateManager:
         self.session_repository = SessionRepository(db_file)
         self.mission_run_repository = MissionRunRepository(db_file)
         self.event_repository = EventRepository(db_file)
+        self.world_service = WorldService(db_file)
         self.event_bus = event_bus
 
     def list_profiles(self) -> list[PlayerProfile]:

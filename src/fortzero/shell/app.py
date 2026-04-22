@@ -1,4 +1,4 @@
-"""Terminal shell boot flow for PR7."""
+"""Terminal shell boot flow for PR8."""
 
 from __future__ import annotations
 
@@ -143,6 +143,17 @@ def choose_campaign(
     return loaded[selected - 1]
 
 
+def print_world_state_summary(state_manager: StateManager, profile_alias: str) -> None:
+    world_state = state_manager.world_service.load(profile_alias)
+
+    print_separator()
+    print("WORLD STATE")
+    print(f"Completed missions: {', '.join(world_state.completed_missions) or 'None'}")
+    print(f"Unlocked missions: {', '.join(world_state.unlocked_missions) or 'None'}")
+    print(f"Discovered intel: {', '.join(world_state.discovered_intel) or 'None'}")
+    print(f"Acquired access: {', '.join(world_state.acquired_access) or 'None'}")
+
+
 def run_mission_flow(
     profile_alias: str,
     preferred_mode: str,
@@ -152,6 +163,7 @@ def run_mission_flow(
     narrative_engine: NarrativeEngine,
     event_bus: EventBus,
     session_id: int,
+    state_manager: StateManager,
 ) -> None:
     print_separator()
     print(f"CAMPAIGN: {campaign.title}")
@@ -238,6 +250,7 @@ def run_mission_flow(
             completed = orchestrator.finalize_if_complete(run_id, run_state)
             if completed:
                 print("Mission completed successfully.")
+                print_world_state_summary(state_manager, profile_alias)
                 return
             print("Required objectives are still incomplete.")
         elif action == "3":
@@ -257,6 +270,7 @@ def run_main_menu(
     campaign_loader: CampaignLoader,
     orchestrator: MissionOrchestrator,
     narrative_engine: NarrativeEngine,
+    state_manager: StateManager,
     context: BootstrapContext,
 ) -> None:
     event_bus.publish(
@@ -304,6 +318,7 @@ def run_main_menu(
                     narrative_engine,
                     event_bus,
                     session_id,
+                    state_manager,
                 )
         elif choice == "2":
             print_separator()
@@ -328,7 +343,11 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
     profile_service = ProfileService(state_manager)
     session_service = SessionService(state_manager)
     campaign_loader = CampaignLoader()
-    orchestrator = MissionOrchestrator(event_bus, state_manager.mission_run_repository)
+    orchestrator = MissionOrchestrator(
+        event_bus,
+        state_manager.mission_run_repository,
+        state_manager.world_service,
+    )
     narrative_engine = NarrativeEngine(context.paths.content_dir)
 
     event_logger = EventLogger(state_manager.event_repository, logger)
@@ -416,6 +435,7 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
             campaign_loader,
             orchestrator,
             narrative_engine,
+            state_manager,
             context,
         )
         session_service.end(session)
