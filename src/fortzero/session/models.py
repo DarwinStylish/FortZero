@@ -10,4 +10,5 @@ from fortzero.profile.models import PlayerProfile
 @dataclass
 class ShellSession:
     profile: PlayerProfile
+    session_id: int
     active: bool = True

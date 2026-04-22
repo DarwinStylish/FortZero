@@ -1,4 +1,4 @@
-"""Terminal shell boot flow for PR2."""
+"""Terminal shell boot flow for PR3."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import logging
 
 from fortzero.core.bootstrap import BootstrapContext
 from fortzero.profile.service import ProfileService
-from fortzero.profile.store import ProfileStore, ProfileStoreError
 from fortzero.session.service import SessionService
 from fortzero.shell.banner import render_banner
+from fortzero.state.state_manager import StateManager
 
 
 def print_separator() -> None:
@@ -136,9 +136,9 @@ def run_main_menu(alias: str, preferred_mode: str) -> None:
 def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
     render_header(context)
 
-    profile_store = ProfileStore(context.paths.profiles_dir)
-    profile_service = ProfileService(profile_store)
-    session_service = SessionService()
+    state_manager = StateManager(context.paths.db_file)
+    profile_service = ProfileService(state_manager)
+    session_service = SessionService(state_manager)
 
     while True:
         action = choose_profile()
@@ -157,16 +157,25 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
 
         try:
             profile = profile_service.load_profile(alias)
-        except ProfileStoreError as exc:
+        except RuntimeError as exc:
             logger.error("Failed to load profile: %s", exc)
             print(f"Profile error: {exc}")
             continue
 
         session = session_service.start(profile)
-        logger.info("Session started for operator '%s'", session.profile.alias)
+        logger.info(
+            "Session started for operator '%s' with session_id=%s",
+            session.profile.alias,
+            session.session_id,
+        )
 
         print_separator()
         print(f"Session initialized for operator: {session.profile.alias}")
         run_main_menu(session.profile.alias, session.profile.preferred_mode)
-        logger.info("Session ended for operator '%s'", session.profile.alias)
+        session_service.end(session)
+        logger.info(
+            "Session ended for operator '%s' with session_id=%s",
+            session.profile.alias,
+            session.session_id,
+        )
         print("Returning to profile access.")

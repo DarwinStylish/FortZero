@@ -7,6 +7,7 @@ import logging
 
 from fortzero.core.config import FortZeroConfig, load_config
 from fortzero.core.paths import AppPaths, build_paths
+from fortzero.data.db import initialize_database
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,8 @@ def bootstrap_runtime() -> BootstrapContext:
         if not directory.exists():
             raise BootstrapError(f"Required directory missing: {directory}")
 
+    initialize_database(paths.db_file)
+
     return BootstrapContext(paths=paths, config=config)
 
 
@@ -50,4 +53,5 @@ def log_bootstrap(logger: logging.Logger, context: BootstrapContext) -> None:
     logger.info("Offline mode: %s", context.config.app.offline_mode)
     logger.info("Profiles directory: %s", context.paths.profiles_dir)
     logger.info("Sessions directory: %s", context.paths.sessions_dir)
+    logger.info("Database file: %s", context.paths.db_file)
     logger.info("Runtime directories ready")
