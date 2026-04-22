@@ -1,14 +1,16 @@
-"""Terminal shell boot flow for PR5."""
+"""Terminal shell boot flow for PR6."""
 
 from __future__ import annotations
 
 import logging
 
 from fortzero.content.campaign_loader import CampaignLoader
+from fortzero.content.models import CampaignDefinition, MissionDefinition
 from fortzero.core.bootstrap import BootstrapContext
 from fortzero.events.bus import EventBus
 from fortzero.events.event_log import EventLogger
 from fortzero.events.models import DomainEvent, EventTypes
+from fortzero.mission.orchestrator import MissionOrchestrator
 from fortzero.profile.service import ProfileService
 from fortzero.session.service import SessionService
 from fortzero.shell.banner import render_banner
@@ -105,27 +107,144 @@ def load_profile_flow(profile_service: ProfileService) -> str | None:
     return profiles[selected - 1].alias
 
 
-def render_campaigns(campaign_loader: CampaignLoader, context: BootstrapContext) -> None:
-    print_separator()
-    print("CAMPAIGNS")
-
+def choose_campaign(
+    campaign_loader: CampaignLoader,
+    context: BootstrapContext,
+) -> tuple[CampaignDefinition, list[MissionDefinition]] | None:
     campaigns_root = context.paths.content_dir / "campaigns"
     loaded = campaign_loader.discover_campaigns(campaigns_root)
 
+    print_separator()
+    print("CAMPAIGNS")
+
     if not loaded:
         print("No campaigns available.")
+        return None
+
+    for index, (campaign, missions) in enumerate(loaded, start=1):
+        print(f"{index}. {campaign.title} ({campaign.id})")
+        print(f"   {campaign.description}")
+        print(f"   Missions: {len(missions)}")
+
+    raw = input("Select campaign number (or press Enter to go back): ").strip()
+    if not raw:
+        return None
+
+    if not raw.isdigit():
+        print("Invalid selection.")
+        return None
+
+    selected = int(raw)
+    if selected < 1 or selected > len(loaded):
+        print("Selection out of range.")
+        return None
+
+    return loaded[selected - 1]
+
+
+def run_mission_flow(
+    profile_alias: str,
+    campaign: CampaignDefinition,
+    missions: list[MissionDefinition],
+    orchestrator: MissionOrchestrator,
+    event_bus: EventBus,
+    session_id: int,
+) -> None:
+    print_separator()
+    print(f"CAMPAIGN: {campaign.title}")
+    print(campaign.description)
+    print("MISSIONS:")
+
+    launch_contexts = [orchestrator.launch_context(profile_alias, mission) for mission in missions]
+
+    for index, context in enumerate(launch_contexts, start=1):
+        availability = "AVAILABLE" if context.available else f"LOCKED: {context.reason}"
+        print(f"{index}. {context.mission.title} [{context.mission.id}] - {availability}")
+
+    raw = input("Select mission number (or press Enter to go back): ").strip()
+    if not raw:
         return
 
-    for campaign, missions in loaded:
-        print(f"- {campaign.title} ({campaign.id})")
-        print(f"  {campaign.description}")
-        print("  Missions:")
-        for mission in missions:
-            print(
-                f"    {mission.order}. {mission.title} [{mission.id}] "
-                f"(agent_hints={mission.mode_agent.hints_enabled}, "
-                f"spectre_hints={mission.mode_spectre.hints_enabled})"
+    if not raw.isdigit():
+        print("Invalid selection.")
+        return
+
+    selected = int(raw)
+    if selected < 1 or selected > len(launch_contexts):
+        print("Selection out of range.")
+        return
+
+    launch = launch_contexts[selected - 1]
+    mission = launch.mission
+
+    if not launch.available:
+        event_bus.publish(
+            DomainEvent(
+                event_type=EventTypes.MISSION_BLOCKED,
+                source="shell.mission_select",
+                profile_alias=profile_alias,
+                mission_id=mission.id,
+                session_id=session_id,
+                payload={"reason": launch.reason},
             )
+        )
+        print(f"Mission blocked: {launch.reason}")
+        return
+
+    run_id, run_state = orchestrator.start_run(profile_alias, mission)
+
+    print_separator()
+    print(f"MISSION STARTED: {mission.title}")
+    print(f"Mission ID: {mission.id}")
+    print("Briefing:")
+    print(mission.briefing)
+    print()
+    print("Objectives:")
+
+    while True:
+        for index, objective in enumerate(run_state.objectives, start=1):
+            status = "DONE" if objective.completed else "OPEN"
+            optional = "OPTIONAL" if objective.optional else "REQUIRED"
+            print(f"{index}. [{status}] [{optional}] {objective.title} - {objective.description}")
+
+        print()
+        print("Mission Actions")
+        print("1. Mark objective complete")
+        print("2. Finish mission check")
+        print("3. Abort to menu")
+
+        action = input("Select option: ").strip()
+
+        if action == "1":
+            raw_obj = input("Select objective number: ").strip()
+            if not raw_obj.isdigit():
+                print("Invalid objective selection.")
+                continue
+
+            obj_index = int(raw_obj)
+            if obj_index < 1 or obj_index > len(run_state.objectives):
+                print("Objective selection out of range.")
+                continue
+
+            objective = run_state.objectives[obj_index - 1]
+            changed = orchestrator.complete_objective(run_id, run_state, objective.id)
+            if changed:
+                print(f"Objective completed: {objective.title}")
+            else:
+                print("Objective could not be completed.")
+        elif action == "2":
+            completed = orchestrator.finalize_if_complete(run_id, run_state)
+            if completed:
+                print("Mission completed successfully.")
+                return
+            print("Required objectives are still incomplete.")
+        elif action == "3":
+            print("Returning to menu without completing mission.")
+            return
+        else:
+            print("Invalid option.")
+
+        print_separator()
 
 
 def run_main_menu(
@@ -134,6 +253,7 @@ def run_main_menu(
     event_bus: EventBus,
     session_id: int,
     campaign_loader: CampaignLoader,
+    orchestrator: MissionOrchestrator,
     context: BootstrapContext,
 ) -> None:
     event_bus.publish(
@@ -169,7 +289,10 @@ def run_main_menu(
         )
 
         if choice == "1":
-            render_campaigns(campaign_loader, context)
+            selection = choose_campaign(campaign_loader, context)
+            if selection is not None:
+                campaign, missions = selection
+                run_mission_flow(alias, campaign, missions, orchestrator, event_bus, session_id)
         elif choice == "2":
             print_separator()
             print("REPORTS")
@@ -193,6 +316,7 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
     profile_service = ProfileService(state_manager)
     session_service = SessionService(state_manager)
     campaign_loader = CampaignLoader()
+    orchestrator = MissionOrchestrator(event_bus, state_manager.mission_run_repository)
 
     event_logger = EventLogger(state_manager.event_repository, logger)
     event_bus.subscribe_all(event_logger.handle)
@@ -277,6 +401,7 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
             event_bus,
             session.session_id,
             campaign_loader,
+            orchestrator,
             context,
         )
         session_service.end(session)

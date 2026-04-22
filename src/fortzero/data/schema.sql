@@ -16,6 +16,18 @@ CREATE TABLE IF NOT EXISTS sessions (
     FOREIGN KEY (profile_alias) REFERENCES profiles(alias) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS mission_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_alias TEXT NOT NULL,
+    campaign_id TEXT NOT NULL,
+    mission_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    objectives_json TEXT NOT NULL,
+    FOREIGN KEY (profile_alias) REFERENCES profiles(alias) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS campaign_state (
     profile_alias TEXT NOT NULL,
     campaign_id TEXT NOT NULL,

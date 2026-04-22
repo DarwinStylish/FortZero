@@ -31,3 +31,8 @@ class EventTypes:
     USER_EXITED = "shell.user_exited"
     MENU_OPENED = "shell.menu_opened"
     MENU_SELECTED = "shell.menu_selected"
+
+    MISSION_STARTED = "mission.started"
+    MISSION_COMPLETED = "mission.completed"
+    MISSION_BLOCKED = "mission.blocked"
+    OBJECTIVE_COMPLETED = "objective.completed"
