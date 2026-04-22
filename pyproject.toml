@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fortzero"
+version = "0.1.0"
+description = "FortZero terminal-first cyber operations simulation platform"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Darwin Stylish" }
+]
+dependencies = [
+  "PyYAML>=6.0"
+]
+
+[project.scripts]
+fortzero = "fortzero.cli.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
