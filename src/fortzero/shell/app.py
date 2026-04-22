@@ -1,4 +1,4 @@
-"""Terminal shell boot flow for PR6."""
+"""Terminal shell boot flow for PR7."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from fortzero.events.bus import EventBus
 from fortzero.events.event_log import EventLogger
 from fortzero.events.models import DomainEvent, EventTypes
 from fortzero.mission.orchestrator import MissionOrchestrator
+from fortzero.narrative.narrative_engine import NarrativeEngine
 from fortzero.profile.service import ProfileService
 from fortzero.session.service import SessionService
 from fortzero.shell.banner import render_banner
@@ -144,9 +145,11 @@ def choose_campaign(
 
 def run_mission_flow(
     profile_alias: str,
+    preferred_mode: str,
     campaign: CampaignDefinition,
     missions: list[MissionDefinition],
     orchestrator: MissionOrchestrator,
+    narrative_engine: NarrativeEngine,
     event_bus: EventBus,
     session_id: int,
 ) -> None:
@@ -193,12 +196,11 @@ def run_mission_flow(
 
     run_id, run_state = orchestrator.start_run(profile_alias, mission)
 
+    narrative_engine.render_mission_intro(mission, preferred_mode)
+
     print_separator()
     print(f"MISSION STARTED: {mission.title}")
     print(f"Mission ID: {mission.id}")
-    print("Briefing:")
-    print(mission.briefing)
-    print()
     print("Objectives:")
 
     while True:
@@ -254,6 +256,7 @@ def run_main_menu(
     session_id: int,
     campaign_loader: CampaignLoader,
     orchestrator: MissionOrchestrator,
+    narrative_engine: NarrativeEngine,
     context: BootstrapContext,
 ) -> None:
     event_bus.publish(
@@ -292,7 +295,16 @@ def run_main_menu(
             selection = choose_campaign(campaign_loader, context)
             if selection is not None:
                 campaign, missions = selection
-                run_mission_flow(alias, campaign, missions, orchestrator, event_bus, session_id)
+                run_mission_flow(
+                    alias,
+                    preferred_mode,
+                    campaign,
+                    missions,
+                    orchestrator,
+                    narrative_engine,
+                    event_bus,
+                    session_id,
+                )
         elif choice == "2":
             print_separator()
             print("REPORTS")
@@ -317,6 +329,7 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
     session_service = SessionService(state_manager)
     campaign_loader = CampaignLoader()
     orchestrator = MissionOrchestrator(event_bus, state_manager.mission_run_repository)
+    narrative_engine = NarrativeEngine(context.paths.content_dir)
 
     event_logger = EventLogger(state_manager.event_repository, logger)
     event_bus.subscribe_all(event_logger.handle)
@@ -402,6 +415,7 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
             session.session_id,
             campaign_loader,
             orchestrator,
+            narrative_engine,
             context,
         )
         session_service.end(session)

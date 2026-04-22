@@ -1,0 +1,2 @@
+Initial access is not the objective. Depth is.
+Move from foothold to privileged control without exposing your intent too early.

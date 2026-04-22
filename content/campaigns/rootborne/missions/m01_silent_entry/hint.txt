@@ -1,0 +1,2 @@
+Start by identifying the cleanest entry path before attempting access.
+In Agent mode, think reconnaissance first, action second.

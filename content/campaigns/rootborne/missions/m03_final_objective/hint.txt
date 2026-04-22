@@ -1,0 +1,2 @@
+Do not treat target acquisition and clean exit as the same action.
+A completed mission is stronger when the exit is deliberate.
