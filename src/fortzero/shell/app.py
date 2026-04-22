@@ -1,4 +1,4 @@
-"""Terminal shell boot flow for PR8."""
+"""Terminal shell boot flow for PR9."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from fortzero.core.bootstrap import BootstrapContext
 from fortzero.events.bus import EventBus
 from fortzero.events.event_log import EventLogger
 from fortzero.events.models import DomainEvent, EventTypes
+from fortzero.ghostwatch.engine import GhostWatchEngine
 from fortzero.mission.orchestrator import MissionOrchestrator
 from fortzero.narrative.narrative_engine import NarrativeEngine
 from fortzero.profile.service import ProfileService
@@ -154,6 +155,17 @@ def print_world_state_summary(state_manager: StateManager, profile_alias: str) -
     print(f"Acquired access: {', '.join(world_state.acquired_access) or 'None'}")
 
 
+def print_ghostwatch_state(state_manager: StateManager, run_id: int) -> None:
+    state = state_manager.ghostwatch_repository.load(run_id)
+    if state is None:
+        return
+    print_separator()
+    print("GHOSTWATCH")
+    print(f"Posture: {state.posture.upper()}")
+    print(f"Suspicion score: {state.suspicion_score}")
+    print(f"Signals: {', '.join(state.signals) if state.signals else 'None'}")
+
+
 def run_mission_flow(
     profile_alias: str,
     preferred_mode: str,
@@ -209,6 +221,7 @@ def run_mission_flow(
     run_id, run_state = orchestrator.start_run(profile_alias, mission)
 
     narrative_engine.render_mission_intro(mission, preferred_mode)
+    print_ghostwatch_state(state_manager, run_id)
 
     print_separator()
     print(f"MISSION STARTED: {mission.title}")
@@ -233,17 +246,46 @@ def run_mission_flow(
             raw_obj = input("Select objective number: ").strip()
             if not raw_obj.isdigit():
                 print("Invalid objective selection.")
+                event_bus.publish(
+                    DomainEvent(
+                        event_type=EventTypes.GHOSTWATCH_SIGNAL,
+                        source="shell.mission_flow",
+                        profile_alias=profile_alias,
+                        mission_id=mission.id,
+                        payload={
+                            "run_id": run_id,
+                            "reason": "invalid_objective_selection",
+                            "score": 1,
+                        },
+                    )
+                )
+                print_ghostwatch_state(state_manager, run_id)
                 continue
 
             obj_index = int(raw_obj)
             if obj_index < 1 or obj_index > len(run_state.objectives):
                 print("Objective selection out of range.")
+                event_bus.publish(
+                    DomainEvent(
+                        event_type=EventTypes.GHOSTWATCH_SIGNAL,
+                        source="shell.mission_flow",
+                        profile_alias=profile_alias,
+                        mission_id=mission.id,
+                        payload={
+                            "run_id": run_id,
+                            "reason": "objective_selection_out_of_range",
+                            "score": 1,
+                        },
+                    )
+                )
+                print_ghostwatch_state(state_manager, run_id)
                 continue
 
             objective = run_state.objectives[obj_index - 1]
             changed = orchestrator.complete_objective(run_id, run_state, objective.id)
             if changed:
                 print(f"Objective completed: {objective.title}")
+                print_ghostwatch_state(state_manager, run_id)
             else:
                 print("Objective could not be completed.")
         elif action == "2":
@@ -251,10 +293,13 @@ def run_mission_flow(
             if completed:
                 print("Mission completed successfully.")
                 print_world_state_summary(state_manager, profile_alias)
+                print_ghostwatch_state(state_manager, run_id)
                 return
             print("Required objectives are still incomplete.")
+            print_ghostwatch_state(state_manager, run_id)
         elif action == "3":
             print("Returning to menu without completing mission.")
+            print_ghostwatch_state(state_manager, run_id)
             return
         else:
             print("Invalid option.")
@@ -343,15 +388,27 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
     profile_service = ProfileService(state_manager)
     session_service = SessionService(state_manager)
     campaign_loader = CampaignLoader()
+    ghostwatch_engine = GhostWatchEngine(event_bus, state_manager.ghostwatch_repository)
     orchestrator = MissionOrchestrator(
         event_bus,
         state_manager.mission_run_repository,
         state_manager.world_service,
+        ghostwatch_engine,
     )
     narrative_engine = NarrativeEngine(context.paths.content_dir)
 
     event_logger = EventLogger(state_manager.event_repository, logger)
     event_bus.subscribe_all(event_logger.handle)
+    event_bus.subscribe(EventTypes.OBJECTIVE_COMPLETED, ghostwatch_engine.handle_event)
+    event_bus.subscribe(EventTypes.GHOSTWATCH_SIGNAL, ghostwatch_engine.handle_event)
+
+    def print_posture_change(event: DomainEvent) -> None:
+        message = str(event.payload.get("message", "GhostWatch posture changed."))
+        print_separator()
+        print("GHOSTWATCH RESPONSE")
+        print(message)
+
+    event_bus.subscribe(EventTypes.GHOSTWATCH_POSTURE_CHANGED, print_posture_change)
 
     event_bus.publish(
         DomainEvent(

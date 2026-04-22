@@ -32,12 +32,13 @@ class ObjectiveEngine:
         self,
         run_state: MissionRunState,
         objective_id: str,
-    ) -> bool:
+    ) -> tuple[bool, bool]:
         for objective in run_state.objectives:
             if objective.id == objective_id:
+                already_completed = objective.completed
                 objective.completed = True
-                return True
-        return False
+                return True, already_completed
+        return False, False
 
     def required_objectives_completed(self, run_state: MissionRunState) -> bool:
         required = [obj for obj in run_state.objectives if not obj.optional]
