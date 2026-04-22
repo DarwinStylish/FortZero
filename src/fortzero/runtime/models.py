@@ -12,6 +12,8 @@ class ServiceState:
     port: int
     state: str
     note: str = ""
+    fingerprint: str = ""
+    discovered: bool = False
 
 
 @dataclass
@@ -33,6 +35,7 @@ class RuntimeState:
     identified_entry_path: bool = False
     established_foothold: bool = False
     notes: list[str] = field(default_factory=list)
+    scan_history: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -47,6 +50,8 @@ class RuntimeState:
                     port=svc["port"],
                     state=svc["state"],
                     note=svc.get("note", ""),
+                    fingerprint=svc.get("fingerprint", ""),
+                    discovered=svc.get("discovered", False),
                 )
                 for svc in raw_node.get("services", [])
             ]
@@ -69,4 +74,5 @@ class RuntimeState:
             identified_entry_path=payload.get("identified_entry_path", False),
             established_foothold=payload.get("established_foothold", False),
             notes=list(payload.get("notes", [])),
+            scan_history=list(payload.get("scan_history", [])),
         )
