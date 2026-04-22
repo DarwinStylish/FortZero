@@ -1,0 +1,21 @@
+id: m01_silent_entry
+title: Silent Entry
+briefing: >
+  Establish the first foothold without drawing unnecessary attention.
+campaign_id: rootborne
+order: 1
+prerequisites: []
+objectives:
+  - id: identify_entry
+    title: Identify Entry Point
+    description: Discover the most viable initial entry path.
+  - id: establish_access
+    title: Establish Access
+    description: Gain the first controlled foothold.
+modes:
+  agent:
+    hints_enabled: true
+    ghostwatch_sensitivity: normal
+  spectre:
+    hints_enabled: false
+    ghostwatch_sensitivity: high

@@ -1,9 +1,10 @@
-"""Terminal shell boot flow for PR4."""
+"""Terminal shell boot flow for PR5."""
 
 from __future__ import annotations
 
 import logging
 
+from fortzero.content.campaign_loader import CampaignLoader
 from fortzero.core.bootstrap import BootstrapContext
 from fortzero.events.bus import EventBus
 from fortzero.events.event_log import EventLogger
@@ -104,11 +105,36 @@ def load_profile_flow(profile_service: ProfileService) -> str | None:
     return profiles[selected - 1].alias
 
 
+def render_campaigns(campaign_loader: CampaignLoader, context: BootstrapContext) -> None:
+    print_separator()
+    print("CAMPAIGNS")
+
+    campaigns_root = context.paths.content_dir / "campaigns"
+    loaded = campaign_loader.discover_campaigns(campaigns_root)
+
+    if not loaded:
+        print("No campaigns available.")
+        return
+
+    for campaign, missions in loaded:
+        print(f"- {campaign.title} ({campaign.id})")
+        print(f"  {campaign.description}")
+        print("  Missions:")
+        for mission in missions:
+            print(
+                f"    {mission.order}. {mission.title} [{mission.id}] "
+                f"(agent_hints={mission.mode_agent.hints_enabled}, "
+                f"spectre_hints={mission.mode_spectre.hints_enabled})"
+            )
+
+
 def run_main_menu(
     alias: str,
     preferred_mode: str,
     event_bus: EventBus,
     session_id: int,
+    campaign_loader: CampaignLoader,
+    context: BootstrapContext,
 ) -> None:
     event_bus.publish(
         DomainEvent(
@@ -143,9 +169,7 @@ def run_main_menu(
         )
 
         if choice == "1":
-            print_separator()
-            print("CAMPAIGNS")
-            print("No campaigns available yet. Rootborne arrives in later PRs.")
+            render_campaigns(campaign_loader, context)
         elif choice == "2":
             print_separator()
             print("REPORTS")
@@ -168,6 +192,7 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
     state_manager = StateManager(context.paths.db_file, event_bus=event_bus)
     profile_service = ProfileService(state_manager)
     session_service = SessionService(state_manager)
+    campaign_loader = CampaignLoader()
 
     event_logger = EventLogger(state_manager.event_repository, logger)
     event_bus.subscribe_all(event_logger.handle)
@@ -251,6 +276,8 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
             session.profile.preferred_mode,
             event_bus,
             session.session_id,
+            campaign_loader,
+            context,
         )
         session_service.end(session)
 
