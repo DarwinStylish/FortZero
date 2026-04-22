@@ -28,6 +28,17 @@ CREATE TABLE IF NOT EXISTS mission_runs (
     FOREIGN KEY (profile_alias) REFERENCES profiles(alias) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS ghostwatch_state (
+    mission_run_id INTEGER PRIMARY KEY,
+    profile_alias TEXT NOT NULL,
+    mission_id TEXT NOT NULL,
+    suspicion_score INTEGER NOT NULL,
+    posture TEXT NOT NULL,
+    state_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (mission_run_id) REFERENCES mission_runs(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS campaign_state (
     profile_alias TEXT NOT NULL,
     campaign_id TEXT NOT NULL,

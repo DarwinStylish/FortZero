@@ -36,3 +36,6 @@ class EventTypes:
     MISSION_COMPLETED = "mission.completed"
     MISSION_BLOCKED = "mission.blocked"
     OBJECTIVE_COMPLETED = "objective.completed"
+
+    GHOSTWATCH_SIGNAL = "ghostwatch.signal"
+    GHOSTWATCH_POSTURE_CHANGED = "ghostwatch.posture_changed"
