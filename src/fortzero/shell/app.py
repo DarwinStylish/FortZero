@@ -1,10 +1,13 @@
-"""Terminal shell boot flow for PR3."""
+"""Terminal shell boot flow for PR4."""
 
 from __future__ import annotations
 
 import logging
 
 from fortzero.core.bootstrap import BootstrapContext
+from fortzero.events.bus import EventBus
+from fortzero.events.event_log import EventLogger
+from fortzero.events.models import DomainEvent, EventTypes
 from fortzero.profile.service import ProfileService
 from fortzero.session.service import SessionService
 from fortzero.shell.banner import render_banner
@@ -101,7 +104,22 @@ def load_profile_flow(profile_service: ProfileService) -> str | None:
     return profiles[selected - 1].alias
 
 
-def run_main_menu(alias: str, preferred_mode: str) -> None:
+def run_main_menu(
+    alias: str,
+    preferred_mode: str,
+    event_bus: EventBus,
+    session_id: int,
+) -> None:
+    event_bus.publish(
+        DomainEvent(
+            event_type=EventTypes.MENU_OPENED,
+            source="shell.main_menu",
+            profile_alias=alias,
+            session_id=session_id,
+            payload={"preferred_mode": preferred_mode},
+        )
+    )
+
     while True:
         print_separator()
         print(f"OPERATOR: {alias}")
@@ -113,6 +131,16 @@ def run_main_menu(alias: str, preferred_mode: str) -> None:
         print("3. Settings")
         print("4. Exit")
         choice = input("Select option: ").strip()
+
+        event_bus.publish(
+            DomainEvent(
+                event_type=EventTypes.MENU_SELECTED,
+                source="shell.main_menu",
+                profile_alias=alias,
+                session_id=session_id,
+                payload={"selection": choice},
+            )
+        )
 
         if choice == "1":
             print_separator()
@@ -136,20 +164,47 @@ def run_main_menu(alias: str, preferred_mode: str) -> None:
 def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
     render_header(context)
 
-    state_manager = StateManager(context.paths.db_file)
+    event_bus = EventBus()
+    state_manager = StateManager(context.paths.db_file, event_bus=event_bus)
     profile_service = ProfileService(state_manager)
     session_service = SessionService(state_manager)
+
+    event_logger = EventLogger(state_manager.event_repository, logger)
+    event_bus.subscribe_all(event_logger.handle)
+
+    event_bus.publish(
+        DomainEvent(
+            event_type=EventTypes.APP_BOOTSTRAPPED,
+            source="shell.run_shell",
+            payload={"env": context.config.app.env, "offline_mode": context.config.app.offline_mode},
+        )
+    )
 
     while True:
         action = choose_profile()
 
         if action == "exit":
+            event_bus.publish(
+                DomainEvent(
+                    event_type=EventTypes.USER_EXITED,
+                    source="shell.profile_access",
+                    payload={"stage": "pre_session"},
+                )
+            )
             logger.info("User exited before session start")
             print("FortZero shutdown complete.")
             return 0
 
         if action == "create":
             alias = create_profile_flow(profile_service)
+            event_bus.publish(
+                DomainEvent(
+                    event_type=EventTypes.PROFILE_CREATED,
+                    source="shell.profile_access",
+                    profile_alias=alias,
+                    payload={"action": "create"},
+                )
+            )
         else:
             alias = load_profile_flow(profile_service)
             if alias is None:
@@ -162,7 +217,27 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
             print(f"Profile error: {exc}")
             continue
 
+        event_bus.publish(
+            DomainEvent(
+                event_type=EventTypes.PROFILE_LOADED,
+                source="shell.profile_access",
+                profile_alias=profile.alias,
+                payload={"preferred_mode": profile.preferred_mode},
+            )
+        )
+
         session = session_service.start(profile)
+
+        event_bus.publish(
+            DomainEvent(
+                event_type=EventTypes.SESSION_STARTED,
+                source="shell.session",
+                profile_alias=session.profile.alias,
+                session_id=session.session_id,
+                payload={"preferred_mode": session.profile.preferred_mode},
+            )
+        )
+
         logger.info(
             "Session started for operator '%s' with session_id=%s",
             session.profile.alias,
@@ -171,8 +246,24 @@ def run_shell(context: BootstrapContext, logger: logging.Logger) -> int:
 
         print_separator()
         print(f"Session initialized for operator: {session.profile.alias}")
-        run_main_menu(session.profile.alias, session.profile.preferred_mode)
+        run_main_menu(
+            session.profile.alias,
+            session.profile.preferred_mode,
+            event_bus,
+            session.session_id,
+        )
         session_service.end(session)
+
+        event_bus.publish(
+            DomainEvent(
+                event_type=EventTypes.SESSION_ENDED,
+                source="shell.session",
+                profile_alias=session.profile.alias,
+                session_id=session.session_id,
+                payload={"active": session.active},
+            )
+        )
+
         logger.info(
             "Session ended for operator '%s' with session_id=%s",
             session.profile.alias,

@@ -40,3 +40,14 @@ CREATE TABLE IF NOT EXISTS reports (
     created_at TEXT NOT NULL,
     FOREIGN KEY (profile_alias) REFERENCES profiles(alias) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS event_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    source TEXT NOT NULL,
+    mission_id TEXT,
+    profile_alias TEXT,
+    session_id INTEGER,
+    payload_json TEXT NOT NULL
+);

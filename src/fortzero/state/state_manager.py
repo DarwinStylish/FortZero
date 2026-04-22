@@ -4,15 +4,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fortzero.data.event_repository import EventRepository
 from fortzero.data.profile_repository import ProfileRepository
 from fortzero.data.session_repository import SessionRepository
+from fortzero.events.bus import EventBus
 from fortzero.profile.models import PlayerProfile
 
 
 class StateManager:
-    def __init__(self, db_file: Path) -> None:
+    def __init__(self, db_file: Path, event_bus: EventBus | None = None) -> None:
         self.profile_repository = ProfileRepository(db_file)
         self.session_repository = SessionRepository(db_file)
+        self.event_repository = EventRepository(db_file)
+        self.event_bus = event_bus
 
     def list_profiles(self) -> list[PlayerProfile]:
         return self.profile_repository.list_profiles()
