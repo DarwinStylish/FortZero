@@ -8,6 +8,7 @@ from fortzero.data.event_repository import EventRepository
 from fortzero.data.ghostwatch_repository import GhostWatchRepository
 from fortzero.data.mission_run_repository import MissionRunRepository
 from fortzero.data.profile_repository import ProfileRepository
+from fortzero.data.runtime_repository import RuntimeRepository
 from fortzero.data.session_repository import SessionRepository
 from fortzero.events.bus import EventBus
 from fortzero.profile.models import PlayerProfile
@@ -19,6 +20,7 @@ class StateManager:
         self.profile_repository = ProfileRepository(db_file)
         self.session_repository = SessionRepository(db_file)
         self.mission_run_repository = MissionRunRepository(db_file)
+        self.runtime_repository = RuntimeRepository(db_file)
         self.ghostwatch_repository = GhostWatchRepository(db_file)
         self.event_repository = EventRepository(db_file)
         self.world_service = WorldService(db_file)
