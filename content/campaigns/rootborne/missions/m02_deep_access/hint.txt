@@ -1,0 +1,2 @@
+Map the deeper access path before escalating.
+Privilege without understanding often creates fragility.

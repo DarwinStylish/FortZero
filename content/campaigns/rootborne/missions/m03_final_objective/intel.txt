@@ -1,0 +1,2 @@
+The final node is likely less obvious than the previous layers.
+Exfiltration discipline matters as much as access discipline.
