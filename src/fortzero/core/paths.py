@@ -15,6 +15,8 @@ class AppPaths:
     docs_dir: Path
     content_dir: Path
     labs_dir: Path
+    profiles_dir: Path
+    sessions_dir: Path
     config_file: Path
     log_file: Path
 
@@ -30,17 +32,19 @@ def resolve_project_root() -> Path:
 def build_paths() -> AppPaths:
     root = resolve_project_root()
     config_dir = root / "config"
+    data_dir = root / "data"
     logs_dir = root / "logs"
-    config_file = config_dir / "base.yaml"
 
     return AppPaths(
         project_root=root,
         config_dir=config_dir,
-        data_dir=root / "data",
+        data_dir=data_dir,
         logs_dir=logs_dir,
         docs_dir=root / "docs",
         content_dir=root / "content",
         labs_dir=root / "labs",
-        config_file=config_file,
+        profiles_dir=data_dir / "profiles",
+        sessions_dir=data_dir / "sessions",
+        config_file=config_dir / "base.yaml",
         log_file=logs_dir / "fortzero.log",
     )

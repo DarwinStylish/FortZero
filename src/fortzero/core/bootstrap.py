@@ -21,7 +21,6 @@ class BootstrapError(RuntimeError):
 
 def bootstrap_runtime() -> BootstrapContext:
     paths = build_paths()
-
     config = load_config(paths.config_file)
 
     required_dirs = [
@@ -30,6 +29,8 @@ def bootstrap_runtime() -> BootstrapContext:
         paths.docs_dir,
         paths.content_dir,
         paths.labs_dir,
+        paths.profiles_dir,
+        paths.sessions_dir,
     ]
 
     if config.runtime.create_missing_dirs:
@@ -47,4 +48,6 @@ def log_bootstrap(logger: logging.Logger, context: BootstrapContext) -> None:
     logger.info("Project root resolved: %s", context.paths.project_root)
     logger.info("Config loaded: %s", context.paths.config_file)
     logger.info("Offline mode: %s", context.config.app.offline_mode)
+    logger.info("Profiles directory: %s", context.paths.profiles_dir)
+    logger.info("Sessions directory: %s", context.paths.sessions_dir)
     logger.info("Runtime directories ready")
