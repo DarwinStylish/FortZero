@@ -19,6 +19,7 @@ class AppPaths:
     sessions_dir: Path
     config_file: Path
     log_file: Path
+    db_file: Path
 
 
 def resolve_project_root() -> Path:
@@ -47,4 +48,5 @@ def build_paths() -> AppPaths:
         sessions_dir=data_dir / "sessions",
         config_file=config_dir / "base.yaml",
         log_file=logs_dir / "fortzero.log",
+        db_file=data_dir / "fortzero.db",
     )
