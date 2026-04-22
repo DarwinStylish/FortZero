@@ -8,6 +8,7 @@ from fortzero.events.models import DomainEvent, EventTypes
 from fortzero.runtime.environment_factory import EnvironmentFactory
 from fortzero.runtime.models import RuntimeState
 from fortzero.runtime.runtime_actions import RuntimeActions
+from fortzero.runtime.scan_engine import ScanEngine
 
 
 class RuntimeEngine:
@@ -16,6 +17,7 @@ class RuntimeEngine:
         self.repository = repository
         self.factory = EnvironmentFactory()
         self.actions = RuntimeActions()
+        self.scan_engine = ScanEngine()
 
     def initialize(self, mission_run_id: int, profile_alias: str, mission_id: str) -> RuntimeState:
         state = self.factory.build(mission_run_id, profile_alias, mission_id)
@@ -43,6 +45,44 @@ class RuntimeEngine:
         self.repository.save(state)
         self._emit_runtime_action(state, "inspect_nodes", {"run_id": mission_run_id})
         return state, message
+
+    def surface_scan(self, mission_run_id: int) -> tuple[RuntimeState, str]:
+        state = self.repository.load(mission_run_id)
+        if state is None:
+            raise RuntimeError(f"Runtime state not found for run_id={mission_run_id}")
+
+        state, result = self.scan_engine.surface_scan(state)
+        self.repository.save(state)
+        self._emit_runtime_action(state, result.action, {"run_id": mission_run_id})
+        return state, result.summary
+
+    def service_scan(self, mission_run_id: int, node_id: str) -> tuple[RuntimeState, str]:
+        state = self.repository.load(mission_run_id)
+        if state is None:
+            raise RuntimeError(f"Runtime state not found for run_id={mission_run_id}")
+
+        state, result = self.scan_engine.service_scan(state, node_id)
+        self.repository.save(state)
+        self._emit_runtime_action(
+            state,
+            result.action,
+            {"run_id": mission_run_id, "node_id": node_id},
+        )
+        return state, result.summary
+
+    def fingerprint_services(self, mission_run_id: int, node_id: str) -> tuple[RuntimeState, str]:
+        state = self.repository.load(mission_run_id)
+        if state is None:
+            raise RuntimeError(f"Runtime state not found for run_id={mission_run_id}")
+
+        state, result = self.scan_engine.fingerprint_services(state, node_id)
+        self.repository.save(state)
+        self._emit_runtime_action(
+            state,
+            result.action,
+            {"run_id": mission_run_id, "node_id": node_id},
+        )
+        return state, result.summary
 
     def enumerate_services(self, mission_run_id: int, node_id: str) -> tuple[RuntimeState, str]:
         state = self.repository.load(mission_run_id)
@@ -84,6 +124,7 @@ class RuntimeEngine:
                     "run_id": state.mission_run_id,
                     "identified_entry_path": state.identified_entry_path,
                     "established_foothold": state.established_foothold,
+                    "scan_history": state.scan_history,
                 },
             )
         )

@@ -22,10 +22,14 @@ class RuntimeActions:
 
         if node_id == "edge-gw":
             state.identified_entry_path = True
+            for service in target.services:
+                service.discovered = True
             if "Viable entry path identified through HTTPS login surface." not in state.notes:
                 state.notes.append("Viable entry path identified through HTTPS login surface.")
             return state, "Service enumeration complete. A viable entry path has been identified."
 
+        for service in target.services:
+            service.discovered = True
         return state, f"Service enumeration complete for node: {node_id}"
 
     def establish_foothold(self, state: RuntimeState, node_id: str) -> tuple[RuntimeState, str]:

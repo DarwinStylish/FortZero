@@ -1,4 +1,4 @@
-"""Terminal shell boot flow for PR10."""
+"""Terminal shell boot flow for PR11."""
 
 from __future__ import annotations
 
@@ -176,6 +176,7 @@ def print_runtime_state(runtime_engine: RuntimeEngine, run_id: int) -> None:
     print("TARGET ENVIRONMENT")
     print(f"Identified entry path: {state.identified_entry_path}")
     print(f"Established foothold: {state.established_foothold}")
+    print(f"Scan history: {', '.join(state.scan_history) if state.scan_history else 'None'}")
     print("Nodes:")
     for node in state.nodes:
         print(
@@ -184,8 +185,8 @@ def print_runtime_state(runtime_engine: RuntimeEngine, run_id: int) -> None:
         )
         for service in node.services:
             print(
-                f"    service={service.name} port={service.port} "
-                f"state={service.state} note={service.note}"
+                f"    service={service.name} port={service.port} state={service.state} "
+                f"discovered={service.discovered} fingerprint={service.fingerprint} note={service.note}"
             )
 
     print("Notes:")
@@ -206,10 +207,12 @@ def run_runtime_actions(
         print_separator()
         print("RUNTIME ACTIONS")
         print("1. Inspect node inventory")
-        print("2. Enumerate edge gateway services")
-        print("3. Establish foothold on edge gateway")
-        print("4. Show runtime state")
-        print("5. Back to mission menu")
+        print("2. Surface scan")
+        print("3. Service scan: edge gateway")
+        print("4. Fingerprint services: edge gateway")
+        print("5. Establish foothold on edge gateway")
+        print("6. Show runtime state")
+        print("7. Back to mission menu")
 
         action = input("Select option: ").strip()
 
@@ -218,16 +221,24 @@ def run_runtime_actions(
             print(message)
             orchestrator.sync_runtime_objectives(run_id, run_state, runtime_state)
         elif action == "2":
-            runtime_state, message = runtime_engine.enumerate_services(run_id, "edge-gw")
+            runtime_state, message = runtime_engine.surface_scan(run_id)
             print(message)
             orchestrator.sync_runtime_objectives(run_id, run_state, runtime_state)
         elif action == "3":
-            runtime_state, message = runtime_engine.establish_foothold(run_id, "edge-gw")
+            runtime_state, message = runtime_engine.service_scan(run_id, "edge-gw")
             print(message)
             orchestrator.sync_runtime_objectives(run_id, run_state, runtime_state)
         elif action == "4":
-            print_runtime_state(runtime_engine, run_id)
+            runtime_state, message = runtime_engine.fingerprint_services(run_id, "edge-gw")
+            print(message)
+            orchestrator.sync_runtime_objectives(run_id, run_state, runtime_state)
         elif action == "5":
+            runtime_state, message = runtime_engine.establish_foothold(run_id, "edge-gw")
+            print(message)
+            orchestrator.sync_runtime_objectives(run_id, run_state, runtime_state)
+        elif action == "6":
+            print_runtime_state(runtime_engine, run_id)
+        elif action == "7":
             return
         else:
             print("Invalid option.")
